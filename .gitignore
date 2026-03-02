@@ -1,2 +1,10 @@
 /.vscode
 /firebase-debug.log
+node_modules/
+dist/
+.turbo/
+*.local
+.env
+.env.local
+.DS_Store
+*.log

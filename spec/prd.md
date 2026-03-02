@@ -430,18 +430,64 @@ Returns the authoritative balance from the `account_balances` materialized view.
 
 | Concern              | Library / Tool                           |
 | -------------------- | ---------------------------------------- |
+| Monorepo             | Turborepo                                |
+| Language             | TypeScript 5 (strict, project references)|
 | Framework            | React 19                                 |
 | Routing              | TanStack Router                          |
 | Server state         | TanStack Query                           |
 | Local persistence    | TanStack DB (Dexie adapter) + IndexedDB  |
-| Language             | TypeScript (strict)                      |
 | Styling              | Tailwind CSS                             |
-| Build                | Vite                                     |
+| Build (client)       | Vite                                     |
+| Build (server)       | tsc / tsx                                |
 | Testing              | Vitest + Testing Library                 |
 | Backend runtime      | Node.js + Express                        |
 | ORM                  | Prisma                                   |
 | Database             | PostgreSQL 16                            |
 | Containerization     | Docker Compose                           |
+
+---
+
+## Monorepo Structure (Turborepo)
+
+```text
+/
+├── turbo.json
+├── package.json          (root — workspaces)
+├── tsconfig.base.json    (shared TS base config)
+├── packages/
+│   └── types/            (shared domain types & event definitions)
+│       ├── package.json
+│       └── src/index.ts
+├── apps/
+│   ├── web/              (React client — Vite)
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── api/              (Node.js + Express backend)
+│       ├── package.json
+│       ├── prisma/
+│       │   └── schema.prisma
+│       └── tsconfig.json
+└── docker-compose.yml
+```
+
+- `packages/types` is the single source of truth for `EventType`, `BaseEvent`, and payload interfaces — imported by both `apps/web` and `apps/api`.
+- Turbo pipeline: `build` depends on `^build` (types built before apps); `dev` runs all apps in watch mode concurrently.
+
+---
+
+## TypeScript Standards
+
+The following rules apply across all packages and apps:
+
+- `"strict": true` in every `tsconfig.json` — no exceptions.
+- `"noUncheckedIndexedAccess": true` — array/object index access always returns `T | undefined`.
+- `"exactOptionalPropertyTypes": true` — optional properties must not be assigned `undefined` explicitly.
+- `"noImplicitReturns": true` and `"noFallthroughCasesInSwitch": true`.
+- **No `any`** — use `unknown` and narrow with type guards. ESLint rule `@typescript-eslint/no-explicit-any: error`.
+- **Discriminated unions** for event types — exhaustive `switch` statements enforced via `never` checks.
+- Shared types live exclusively in `packages/types`; apps must not redefine domain types locally.
+- All async functions return `Promise<T>` with explicit return types — no inferred `Promise<any>`.
+- `zod` used at API boundaries (request body validation) to parse and type-narrow incoming JSON.
 
 ---
 

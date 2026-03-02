@@ -1,0 +1,32 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Event {
+  id             String   @id
+  accountId      String   @map("account_id")
+  type           String
+  payload        Json
+  sequenceNumber Int      @map("sequence_number")
+  createdAt      BigInt   @map("created_at")
+  syncedAt       DateTime @default(now()) @map("synced_at")
+
+  @@unique([accountId, sequenceNumber])
+  @@index([accountId, sequenceNumber])
+  @@map("events")
+}
+
+model AccountBalance {
+  accountId String   @id @map("account_id")
+  ownerName String   @default("") @map("owner_name")
+  balance   Decimal  @default(0)
+  lastSeq   Int      @default(0) @map("last_seq")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("account_balances")
+}
