@@ -14,16 +14,19 @@
 
 ## Base Types
 
-```ts
-// packages/types/src/index.ts
+Each type/interface lives in its own file. The barrel `packages/types/src/index.ts` re-exports all of them.
 
+```ts
+// packages/types/src/EventType.ts
 export type EventType =
   | 'ENTITY_CREATED'
   | 'ACTION_PERFORMED'
   // ... add yours here
 
+// packages/types/src/SyncStatus.ts
 export type SyncStatus = 'pending' | 'synced' | 'failed';
 
+// packages/types/src/BaseEventFields.ts
 export interface BaseEventFields {
   id: string;           // UUID v4, client-generated
   aggregateId: string;  // The entity this event belongs to
@@ -36,14 +39,16 @@ export interface BaseEventFields {
 
 ## Payload Interfaces
 
-One interface per event type. Keep payloads minimal — only raw facts, no derived values.
+One interface per event type, each in its own file. Keep payloads minimal — only raw facts, no derived values.
 
 ```ts
+// packages/types/src/EntityCreatedPayload.ts
 export interface EntityCreatedPayload {
   name: string;
   // add fields needed to reconstruct state for this event
 }
 
+// packages/types/src/ActionPerformedPayload.ts
 export interface ActionPerformedPayload {
   amount: number;
   referenceId?: string;
@@ -54,18 +59,22 @@ export interface ActionPerformedPayload {
 
 ## Discriminated Union
 
+Each event interface lives in its own file. The union type also gets its own file.
+
 ```ts
+// packages/types/src/EntityCreatedEvent.ts
 export interface EntityCreatedEvent extends BaseEventFields {
   type: 'ENTITY_CREATED';
   payload: EntityCreatedPayload;
 }
 
+// packages/types/src/ActionPerformedEvent.ts
 export interface ActionPerformedEvent extends BaseEventFields {
   type: 'ACTION_PERFORMED';
   payload: ActionPerformedPayload;
 }
 
-// The canonical union — add every event type here
+// packages/types/src/MyEvent.ts — the canonical union, add every event type here
 export type MyEvent =
   | EntityCreatedEvent
   | ActionPerformedEvent;
@@ -78,6 +87,7 @@ export type MyEvent =
 `StoredEvent` extends the domain event with client sync state. This is what lives in Dexie and what your hooks return.
 
 ```ts
+// packages/types/src/StoredEvent.ts
 export type StoredEvent = MyEvent & {
   status: SyncStatus;
   syncedAt?: number;  // Unix ms, set when status becomes 'synced'
@@ -88,13 +98,15 @@ export type StoredEvent = MyEvent & {
 
 ## Type Guards
 
-Generate one per event variant for narrowing in handlers:
+One type guard per event variant, each in its own file:
 
 ```ts
+// packages/types/src/isEntityCreatedEvent.ts
 export function isEntityCreatedEvent(e: MyEvent): e is EntityCreatedEvent {
   return e.type === 'ENTITY_CREATED';
 }
 
+// packages/types/src/isActionPerformedEvent.ts
 export function isActionPerformedEvent(e: MyEvent): e is ActionPerformedEvent {
   return e.type === 'ACTION_PERFORMED';
 }
@@ -104,9 +116,10 @@ export function isActionPerformedEvent(e: MyEvent): e is ActionPerformedEvent {
 
 ## State Computation
 
-The canonical reducer. Lives in the shared types package so both client and server use identical logic.
+The canonical reducer. Lives in the shared types package so both client and server use identical logic. Each lives in its own file.
 
 ```ts
+// packages/types/src/AggregateState.ts
 export interface AggregateState {
   aggregateId: string;
   name: string;
@@ -114,6 +127,7 @@ export interface AggregateState {
   optimisticBalance: number;
 }
 
+// packages/types/src/computeStateFromEvents.ts
 export function computeStateFromEvents(
   aggregateId: string,
   events: readonly MyEvent[]
@@ -217,15 +231,16 @@ const BatchEventsRequestSchema = z.object({
 
 ## Template — New Event Checklist
 
-When adding a new event type:
+When adding a new event type (one file per export):
 
-- [ ] Add `'NEW_EVENT_TYPE'` to `EventType` union
-- [ ] Add `NewEventPayload` interface
-- [ ] Add `NewEvent extends BaseEventFields { type: 'NEW_EVENT_TYPE'; payload: NewEventPayload }`
-- [ ] Add to `MyEvent` discriminated union
-- [ ] Add `isNewEvent` type guard
-- [ ] Add `case 'NEW_EVENT_TYPE':` to `computeStateFromEvents` (server replay)
-- [ ] Add `case 'NEW_EVENT_TYPE':` to `computeClientState` (client confirmed/pending split)
+- [ ] Add `'NEW_EVENT_TYPE'` to `EventType.ts`
+- [ ] Create `NewEventPayload.ts` with the payload interface
+- [ ] Create `NewEvent.ts` with `NewEvent extends BaseEventFields { type: 'NEW_EVENT_TYPE'; payload: NewEventPayload }`
+- [ ] Add `NewEvent` to the union in `MyEvent.ts`
+- [ ] Create `isNewEvent.ts` with the type guard
+- [ ] Re-export all new files from `index.ts` (the barrel)
+- [ ] Add `case 'NEW_EVENT_TYPE':` to `computeStateFromEvents.ts` (server replay)
+- [ ] Add `case 'NEW_EVENT_TYPE':` to `computeAccountState.ts` (client confirmed/pending split)
 - [ ] Add `z.object({ type: z.literal('NEW_EVENT_TYPE'), ... })` to Zod `discriminatedUnion`
 - [ ] Add `WHEN 'NEW_EVENT_TYPE' THEN ...` to the PostgreSQL trigger
-- [ ] Update Dexie `dbEventToStoredEvent` switch (if payload needs type coercion)
+- [ ] Add `case 'NEW_EVENT_TYPE':` to `dbEventToStoredEvent.ts` (if payload needs type coercion)

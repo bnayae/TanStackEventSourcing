@@ -13,11 +13,10 @@
 
 ## Dexie Schema
 
-```ts
-// apps/web/src/db/client.ts
-import Dexie, { type Table } from 'dexie';
-import type { StoredEvent, EventType } from '@your-scope/types';
+Each export lives in its own file. The barrel `apps/web/src/db/client.ts` re-exports all of them.
 
+```ts
+// apps/web/src/db/DBEvent.ts
 export interface DBEvent {
   id: string;             // Primary key (UUID)
   aggregateId: string;    // Index
@@ -29,6 +28,7 @@ export interface DBEvent {
   syncedAt?: number;      // Unix ms, set when synced
 }
 
+// apps/web/src/db/AppDatabase.ts
 class AppDatabase extends Dexie {
   events!: Table<DBEvent, string>;
 
@@ -41,8 +41,10 @@ class AppDatabase extends Dexie {
   }
 }
 
+// apps/web/src/db/db.ts
 export const db = new AppDatabase();
 
+// apps/web/src/db/dbEventToStoredEvent.ts
 export function dbEventToStoredEvent(dbEvent: DBEvent): StoredEvent {
   const base = {
     id: dbEvent.id,
@@ -66,6 +68,8 @@ export function dbEventToStoredEvent(dbEvent: DBEvent): StoredEvent {
     }
   }
 }
+
+// apps/web/src/db/client.ts — barrel re-exports all of the above
 ```
 
 **Index rationale**:
@@ -78,8 +82,10 @@ export function dbEventToStoredEvent(dbEvent: DBEvent): StoredEvent {
 
 ## addEvent()
 
+Each function lives in its own file. The barrel `apps/web/src/store/eventStore.ts` re-exports all of them.
+
 ```ts
-// apps/web/src/store/eventStore.ts
+// apps/web/src/store/addEvent.ts
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/client.js';
 
@@ -283,19 +289,23 @@ export const syncEngine = new SyncEngine();
 
 ## NetworkStatusContext
 
-```tsx
-// apps/web/src/context/NetworkStatusContext.tsx
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { syncEngine } from '../sync/syncEngine.js';
+Each export lives in its own file. The barrel `apps/web/src/context/NetworkStatusContext.tsx` re-exports all of them.
 
-interface NetworkStatusContextValue {
-  status: 'online' | 'offline';
+```tsx
+// apps/web/src/context/NetworkStatus.ts
+export type NetworkStatus = 'online' | 'offline';
+
+// apps/web/src/context/NetworkStatusContextValue.ts
+export interface NetworkStatusContextValue {
+  status: NetworkStatus;
   isManuallyOffline: boolean;
   toggleManualOffline: () => void;
 }
 
-const NetworkStatusContext = createContext<NetworkStatusContextValue | null>(null);
+// apps/web/src/context/useNetworkStatusContext.ts
+export function useNetworkStatusContext(): NetworkStatusContextValue { ... }
 
+// apps/web/src/context/NetworkStatusProvider.tsx
 export function NetworkStatusProvider({ children }: { children: ReactNode }) {
   const [browserOnline, setBrowserOnline] = useState(navigator.onLine);
   const [isManuallyOffline, setIsManuallyOffline] = useState(false);

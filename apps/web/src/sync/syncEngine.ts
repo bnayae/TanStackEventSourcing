@@ -158,7 +158,7 @@ export class SyncEngine {
       events: events.map(e => ({
         id: e.id,
         type: e.type,
-        payload: e.payload as Record<string, unknown>,
+        payload: e.payload as unknown as Record<string, unknown>,
         createdAt: e.createdAt,
         sequenceNumber: e.sequenceNumber,
       })),
