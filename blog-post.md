@@ -1,14 +1,89 @@
 # Building Truly Offline-First Apps with Event Sourcing, TanStack, and PostgreSQL
 
-*How an append-only event log turns flaky connectivity from a crisis into a non-event — and gives you time travel for free.*
+*How two independent event logs — one in the browser, one in the database — turn flaky connectivity from a crisis into a non-event, and give you time travel for free.*
 
 ---
 
+## Two Event Logs, Loosely Coupled
+
 Most "offline-first" apps are optimistic-UI apps wearing a disguise. They cache the last server response, let you poke around, and then nervously reconcile when the network returns. The moment two devices diverge, or a sync fails mid-way, you're left with a state machine that nobody designed and nobody trusts.
 
-There's a better foundation: **event sourcing**. Instead of syncing *state*, you sync *what happened*. The log is the truth. The UI is just a view over it. And when you wire that together with TanStack's modern React primitives and PostgreSQL's trigger pipeline, you get something genuinely powerful — an app that works identically online or offline, with built-in audit trails and point-in-time time travel baked into the architecture.
+The architecture in this post takes a different approach: **event sourcing runs at both layers**, independently.
 
-This post walks through how it all fits together.
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 1 — CLIENT (Browser)                                     │
+│                                                                 │
+│   User action                                                   │
+│       │                                                         │
+│       ▼                                                         │
+│   addEvent()  ──▶  IndexedDB (Dexie)  ──▶  useLiveQuery        │
+│                     append-only log         reactive UI         │
+│                                                                 │
+│   State = computeStateFromEvents(localLog)                      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+              sync pending events (pure JSON)
+              when network is available
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│  LAYER 2 — SERVER (PostgreSQL)                                  │
+│                                                                 │
+│   POST /api/events/batch                                        │
+│       │                                                         │
+│       ▼                                                         │
+│   events table  ──▶  PG trigger fires  ──▶  account_balances   │
+│   append-only log     on every INSERT        materialized view  │
+│                                                                 │
+│   State = materialized aggregate (O(1) lookup)                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Each layer is a **complete, self-consistent event-sourced system**. The client log drives the UI. The server log drives the authoritative state. The only thing crossing the boundary is plain event objects — no state deltas, no merge instructions, no version vectors.
+
+### Why two layers instead of one?
+
+A single event log with the server as the authority is the classic event sourcing setup. It works well when you're always online. Add network unreliability and it breaks in a familiar way: the UI freezes or lies while waiting for the server.
+
+The two-layer model sidesteps this entirely:
+
+| | Single log (server-authoritative) | Two-layer (this architecture) |
+| --- | --- | --- |
+| Works offline | No — writes block on network | Yes — client log is independent |
+| Conflict detection | Must coordinate in real time | Sequence numbers; visible on sync |
+| UI latency | Round-trip per action | Zero — IndexedDB write is synchronous |
+| Audit trail | Server only | Both client and server |
+
+### The coupling point: pure events
+
+The bridge between the two layers is intentionally minimal. The sync engine sends batches of raw event objects:
+
+```typescript
+// What crosses the wire — nothing more
+POST /api/events/batch
+[
+  { id: "uuid-1", type: "DEPOSITED", payload: { amount: 100 },
+    accountId: "acc-1", sequenceNumber: 7, createdAt: 1710000000000 }
+]
+```
+
+No state. No computed values. No "here's what the balance should be." The server recomputes everything from the events it receives, just as the client does from the events it holds. This is what makes the coupling loose: neither side depends on what the other has *derived* — only on the raw facts of what *happened*.
+
+### Network failures are a non-event
+
+Because the client log is append-only and fully local, network outages don't interrupt the user at all:
+
+```text
+  Online:   write ──▶ IndexedDB ──▶ sync immediately ──▶ server ACKs ──▶ status: synced
+                                         ↕ (network fine)
+
+  Offline:  write ──▶ IndexedDB ──▶ queued                             ──▶ status: pending
+                                         ↕ (network gone)
+                                         ↕
+            reconnect              ──▶ drain queue ──▶ server ACKs ──▶ status: synced
+```
+
+The amber "pending" indicator in the UI reflects exactly this: the event exists, the state is correct, the server just hasn't confirmed it yet. When the network returns, the sync engine drains the queue in order and the pending badges disappear. Nothing was lost. Nothing needs to be re-entered.
 
 ---
 
@@ -46,21 +121,28 @@ function computeStateFromEvents(events: FundsEvent[]): AccountState {
 
   for (const event of events) {
     switch (event.type) {
-      case 'DEPOSITED':      balance += event.payload.amount; break;
-      case 'WITHDRAWN':      balance -= event.payload.amount; break;
+      case 'ACCOUNT_CREATED':
+        ownerName = event.payload.ownerName;
+        break;
+      case 'DEPOSITED':
+        balance += event.payload.amount;
+        break;
+      case 'WITHDRAWN':
+        balance -= event.payload.amount;
+        break;
       case 'CAPTURED':
         captures.set(event.payload.referenceId, event.payload.amount);
         balance -= event.payload.amount;
         break;
       case 'CAPTURE_RELEASED': {
-        const held = captures.get(event.payload.referenceId) ?? 0;
-        balance += held;
+        const capturedAmount = captures.get(event.payload.referenceId) ?? 0;
+        balance += capturedAmount;
         captures.delete(event.payload.referenceId);
         break;
       }
       default: {
-        const _exhaustive: never = event; // compile-time guard
-        throw new Error(`Unhandled event: ${JSON.stringify(_exhaustive)}`);
+        const _exhaustive: never = event;
+        throw new Error(`Unknown event type: ${JSON.stringify(_exhaustive)}`);
       }
     }
   }
@@ -84,7 +166,7 @@ This is where many people reach for a single state management solution and then 
 
 The split is intentional and powerful:
 
-```
+```text
 User interaction
       ↓
 addEvent() → IndexedDB (Dexie)
@@ -151,7 +233,7 @@ When the user goes offline — or clicks "Simulate Offline" in the dev UI — ev
 
 Optimistic UI is easy. Making it *reliable* is where most implementations fall short. The sync engine here is a small but carefully designed state machine:
 
-```
+```text
 pending → (POST /api/events/batch) → synced
                                   → failed (409 conflict or max retries)
 ```
@@ -333,7 +415,7 @@ Once a result loads, prev/next navigation buttons let you step through the event
 
 Here's the complete journey from user action to server-consistent view:
 
-```
+```text
 User taps "Deposit $100"
         ↓
 addEvent() writes { status: 'pending' } to IndexedDB
@@ -393,3 +475,44 @@ The result is a system that fails gracefully, scales cleanly, and gives operator
 ---
 
 *The full source code for this architecture, including the sync engine, PostgreSQL trigger, and time travel UI, is available in the accompanying repository.*
+
+---
+
+## Claude Code Skill: Build This Architecture with AI Assistance
+
+If you use [Claude Code](https://claude.ai/claude-code), the entire architecture described in this post is packaged as an installable skill — a self-contained expert guide that Claude loads on demand whenever you're working on event-sourced apps. It covers all eight implementation steps (domain events → TypeScript schema → PostgreSQL trigger → Dexie client → TanStack wiring → offline simulation → snapshots → time travel), including the full reference code for each layer.
+
+### Install the skill
+
+#### Option 1 — Plugin marketplace (recommended)
+
+In any Claude Code session:
+
+```text
+/plugin marketplace add bnaya-eshet/TanStackEventSourcing
+/plugin install tanstack-event-sourcing@tanstack-event-sourcing-marketplace
+```
+
+#### Option 2 — npm
+
+```bash
+npm install -g tanstack-event-sourcing-skill
+```
+
+Then add the installed skill directory to your `.claude/skills/` folder, or configure it in your project's `settings.json`.
+
+#### Option 3 — Direct download
+
+Download the latest `tanstack-event-sourcing.skill` file from the [GitHub Releases page](https://github.com/bnaya-eshet/TanStackEventSourcing/releases) and install it via the Claude Code UI.
+
+### What the skill does
+
+Once installed, Claude automatically suggests the skill when it detects event-sourcing patterns in your prompts or files. You can also invoke it explicitly:
+
+> *"Help me add a CAPTURED event to my funds domain"*
+> *"Set up a Dexie SyncEngine with exponential backoff"*
+> *"Design the PostgreSQL aggregation trigger for my orders table"*
+> *"Add snapshot-based cold-start bootstrap"*
+> *"Build a time-travel UI for my event log"*
+
+Claude will follow the exact patterns from this post — discriminated union types, the PG trigger idiom, the two-phase bootstrap, the `staleTime: Infinity` TanStack Query pattern — rather than improvising from scratch.
