@@ -1,0 +1,24 @@
+{
+  "name": "tanstack-event-sourcing-skill",
+  "version": "0.0.0",
+  "description": "Claude Code skill: expert guide for building full-stack event-sourced apps with TanStack Router, TanStack Query, Dexie, Express, Prisma, and PostgreSQL.",
+  "files": [
+    ".claude-plugin",
+    "skills"
+  ],
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "tanstack",
+    "event-sourcing",
+    "offline-first",
+    "dexie",
+    "prisma",
+    "postgresql"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bnaya-eshet/TanStackEventSourcing"
+  }
+}

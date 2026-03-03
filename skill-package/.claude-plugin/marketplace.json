@@ -1,0 +1,13 @@
+{
+  "name": "tanstack-event-sourcing-marketplace",
+  "owner": {
+    "name": "bnaya-eshet"
+  },
+  "plugins": [
+    {
+      "name": "tanstack-event-sourcing",
+      "source": "./",
+      "description": "Event-sourced full-stack apps with TanStack Router/Query, Dexie IndexedDB, Express, Prisma, and PostgreSQL. Covers offline-first sync, optimistic UI, snapshots, and time-travel."
+    }
+  ]
+}

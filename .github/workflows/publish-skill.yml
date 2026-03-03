@@ -1,0 +1,71 @@
+name: Publish tanstack-event-sourcing skill
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required for creating GitHub Releases
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Validate & package .skill file ──────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install pyyaml
+
+      - name: Validate skill
+        run: |
+          cd .claude/skills/skill-creator/scripts
+          python quick_validate.py "$GITHUB_WORKSPACE/.claude/skills/tanstack-event-sourcing"
+
+      - name: Package skill into .skill file
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cd .claude/skills/skill-creator/scripts
+          python package_skill.py \
+            "$GITHUB_WORKSPACE/.claude/skills/tanstack-event-sourcing" \
+            "$GITHUB_WORKSPACE/dist"
+
+      # ── Sync skill files into skill-package/ and stamp version ──────────
+      - name: Prepare skill-package for npm and marketplace
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Publishing version $VERSION"
+
+          # Copy latest skill sources into skill-package/skills/
+          rm -rf skill-package/skills/tanstack-event-sourcing
+          mkdir -p skill-package/skills
+          cp -r .claude/skills/tanstack-event-sourcing skill-package/skills/
+
+          # Stamp version into plugin.json and package.json
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
+            skill-package/.claude-plugin/plugin.json
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" \
+            skill-package/package.json
+
+      # ── GitHub Release with .skill asset ────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/tanstack-event-sourcing.skill
+          generate_release_notes: true
+
+      # ── Publish to npm ───────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        run: cd skill-package && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
