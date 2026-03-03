@@ -1,0 +1,77 @@
+{
+  "tanstack-event-sourcing": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "high",
+    "promptTriggers": {
+      "keywords": [
+        "event sourcing",
+        "event-sourced",
+        "event store",
+        "append-only",
+        "event log",
+        "domain event",
+        "aggregate",
+        "SyncEngine",
+        "useLiveQuery",
+        "IndexedDB",
+        "offline-first",
+        "optimistic update",
+        "optimistic balance",
+        "pending event",
+        "synced event",
+        "sequence number",
+        "sequenceNumber",
+        "computeStateFromEvents",
+        "computeAccountState",
+        "balance snapshot",
+        "snapshot",
+        "time travel",
+        "time-travel",
+        "point-in-time",
+        "historical state",
+        "bootstrapFromSnapshots",
+        "bootstrap snapshot",
+        "afterSeq",
+        "CAPTURE_RELEASED",
+        "DEPOSITED",
+        "WITHDRAWN",
+        "ACCOUNT_CREATED",
+        "FundsEvent",
+        "StoredEvent",
+        "SyncStatus",
+        "dexie",
+        "Dexie"
+      ],
+      "intentPatterns": [
+        "build.{0,30}event.{0,20}sourc",
+        "add.{0,30}(domain )?event",
+        "implement.{0,40}offline",
+        "implement.{0,40}optimistic",
+        "implement.{0,40}sync",
+        "implement.{0,40}snapshot",
+        "implement.{0,40}time.?travel",
+        "implement.{0,40}time.?travel",
+        "reconstruct.{0,30}(state|balance)",
+        "how.{0,20}(events?|state).{0,20}flow",
+        "explain.{0,30}(optimistic|pending|confirmed)",
+        "bootstrap.{0,20}(client|startup|cold.?start)",
+        "replay.{0,20}event",
+        "aggregate.{0,20}(trigger|snapshot|state)"
+      ]
+    },
+    "fileTriggers": {
+      "paths": [
+        "apps/web/src/sync/**",
+        "apps/web/src/store/**",
+        "apps/web/src/db/**",
+        "apps/web/src/hooks/useAccount*",
+        "apps/web/src/components/TimeTravelPanel*",
+        "apps/api/src/routes/accounts*",
+        "apps/api/src/routes/events*",
+        "apps/api/prisma/migrations/**",
+        "packages/types/src/**"
+      ]
+    }
+  }
+}
