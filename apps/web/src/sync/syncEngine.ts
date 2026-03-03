@@ -1,4 +1,5 @@
 import { getPendingEvents, markEventSynced, markEventFailed } from '../store/eventStore.js';
+import { bootstrapFromSnapshots } from './bootstrap.js';
 import type { StoredEvent } from '@funds/types';
 
 const API_BASE = '/api';
@@ -72,12 +73,23 @@ export class SyncEngine {
     window.addEventListener('online', this.onlineListener);
     window.addEventListener('offline', this.offlineListener);
 
-    // Initial sync if online
+    // Bootstrap from server snapshots first, then sync pending events
     if (this.isOnline) {
-      void this.sync();
+      void this.bootstrap();
     }
 
     console.log('[SyncEngine] Started');
+  }
+
+  private async bootstrap(): Promise<void> {
+    const bootstrappedIds = await bootstrapFromSnapshots();
+    if (bootstrappedIds.length > 0) {
+      for (const cb of this.onSyncCompleteCallbacks) {
+        cb(bootstrappedIds);
+      }
+    }
+    // After bootstrap, sync any pending events
+    void this.sync();
   }
 
   stop(): void {

@@ -22,11 +22,25 @@ model Event {
 }
 
 model AccountBalance {
-  accountId String   @id @map("account_id")
-  ownerName String   @default("") @map("owner_name")
-  balance   Decimal  @default(0)
-  lastSeq   Int      @default(0) @map("last_seq")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  accountId   String   @id @map("account_id")
+  ownerName   String   @default("") @map("owner_name")
+  balance     Decimal  @default(0)
+  lastSeq     Int      @default(0) @map("last_seq")
+  lastEventAt BigInt   @default(0) @map("last_event_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
 
   @@map("account_balances")
+}
+
+model BalanceSnapshot {
+  id          BigInt   @id @default(autoincrement())
+  accountId   String   @map("account_id")
+  ownerName   String   @default("") @map("owner_name")
+  balance     Decimal
+  lastSeq     Int      @map("last_seq")
+  lastEventAt BigInt   @map("last_event_at")
+  capturedAt  DateTime @default(now()) @map("captured_at")
+
+  @@index([accountId, lastEventAt(sort: Desc)])
+  @@map("balance_snapshots")
 }

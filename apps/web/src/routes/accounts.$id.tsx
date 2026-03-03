@@ -6,6 +6,7 @@ import { DepositForm } from '../components/DepositForm.js';
 import { WithdrawalForm } from '../components/WithdrawalForm.js';
 import { CaptureForm } from '../components/CaptureForm.js';
 import { ReleaseCaptureForm } from '../components/ReleaseCaptureForm.js';
+import { TimeTravelPanel } from '../components/TimeTravelPanel.js';
 
 function AccountDetailPage() {
   const { id } = Route.useParams();
@@ -77,6 +78,11 @@ function AccountDetailPage() {
         <WithdrawalForm accountId={id} events={events} />
         <CaptureForm accountId={id} events={events} />
         <ReleaseCaptureForm accountId={id} events={events} />
+      </div>
+
+      {/* Time Travel */}
+      <div className="mb-6">
+        <TimeTravelPanel accountId={id} currentBalance={state.balance} events={events} />
       </div>
 
       {/* Event History */}
