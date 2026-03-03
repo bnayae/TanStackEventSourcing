@@ -332,6 +332,11 @@ export function TimeTravelPanel({ accountId, currentBalance, events }: TimeTrave
                 <span className="text-xs text-gray-500 flex-1 text-center">
                   {cursorIndex + 1} / {syncedEvents.length}
                 </span>
+                {!atLast && syncedEvents[cursorIndex + 1] && (
+                  <span className="text-xs text-gray-400 text-right">
+                    {eventSummary(syncedEvents[cursorIndex + 1]!)}
+                  </span>
+                )}
                 <button
                   onClick={goForward}
                   disabled={atLast}
